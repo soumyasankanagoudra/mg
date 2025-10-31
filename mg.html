@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>MGNREGA Performance Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body{margin:0;font-family:'Poppins',sans-serif;background:linear-gradient(135deg,#e0f7fa,#fce4ec);}
+header{background:linear-gradient(90deg,#4a148c,#1976d2);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;}
+header h1{margin:0;font-size:22px;}
+.lang-btn{background:white;color:#4a148c;border:none;padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer;}
+main{max-width:1000px;margin:20px auto;padding:10px;}
+.card{background:white;padding:16px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1);margin-bottom:18px;}
+select,button,input{padding:12px;border:1px solid #ccc;border-radius:8px;font-size:16px;}
+button{cursor:pointer;transition:0.3s;}
+button:hover{transform:scale(1.03);}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;}
+.big-btn{background:linear-gradient(90deg,#512da8,#1976d2);color:white;border:none;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;}
+.metric{text-align:center;}
+.metric h3{margin:5px 0;font-size:20px;color:#333;}
+.num{font-size:28px;font-weight:800;}
+.indicator{margin-top:5px;padding:6px 12px;border-radius:12px;color:white;font-weight:700;}
+.green{background:#2e7d32;} .red{background:#c62828;} .yellow{background:#fbc02d;}
+.notice{font-size:14px;color:#555;text-align:center;margin-top:10px;}
+footer{text-align:center;font-size:13px;color:#777;margin-top:20px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>MGNREGA District Dashboard</h1>
+  <button id="langBtn" class="lang-btn">हिन्दी</button>
+</header>
+
+<main>
+  <div class="card">
+    <h2 style="text-align:center;color:#4a148c;">Select Your Area</h2>
+    <div class="controls">
+      <select id="countrySelect">
+        <option value="">Select Country</option>
+        <option>India</option>
+      </select>
+      <select id="stateSelect" disabled>
+        <option value="">Select State</option>
+      </select>
+      <select id="districtSelect" disabled>
+        <option value="">Select District</option>
+      </select>
+      <select id="locationSelect" disabled>
+        <option value="">Location Type</option>
+        <option>Rural</option>
+        <option>Urban</option>
+      </select>
+      <button id="geoBtn" class="big-btn">📍 Use My Location</button>
+    </div>
+    <button id="loadBtn" class="big-btn" style="width:100%;font-size:18px;">Load Performance</button>
+  </div>
+
+  <div id="dashboard" style="display:none;">
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <h2 id="districtName">District</h2>
+        <p id="lastUpdated" style="color:#777;margin:0;">Last updated: --</p>
+      </div>
+      <button id="speakBtn" class="big-btn">🔊 Speak</button>
+    </div>
+
+    <div class="grid">
+      <div class="card metric" style="background:linear-gradient(135deg,#bbdefb,#e3f2fd);">
+        <h3>Beneficiaries</h3>
+        <div id="beneficiaries" class="num">--</div>
+        <div id="benefIndicator" class="indicator yellow">--</div>
+      </div>
+
+      <div class="card metric" style="background:linear-gradient(135deg,#c8e6c9,#f1f8e9);">
+        <h3>Wages Paid (₹)</h3>
+        <div id="wages" class="num">--</div>
+        <div id="wageIndicator" class="indicator yellow">--</div>
+      </div>
+
+      <div class="card metric" style="background:linear-gradient(135deg,#ffe0b2,#fff3e0);">
+        <h3>Performance Verdict</h3>
+        <div id="verdict" class="num">--</div>
+      </div>
+
+      <div class="card">
+        <h3 style="text-align:center;">12-Month Trend</h3>
+        <canvas id="trendChart" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div id="notice" class="notice"></div>
+</main>
+<footer>© 2025 MGNREGA Dashboard | Built for Citizens of India</footer>
+
+<script>
+const states=["Uttar Pradesh","Maharashtra","Bihar"];
+const districtsUP=["Lucknow","Agra","Varanasi","Kanpur","Meerut"];
+const districtsMH=["Pune","Nagpur","Mumbai","Nashik","Aurangabad"];
+const districtsBH=["Patna","Gaya","Bhagalpur","Muzaffarpur","Nalanda"];
+let lang="en";
+const i18n={en:{b:"Beneficiaries",w:"Wages Paid (₹)",v:["Much Improved","Improved","Stable","Down","Declined"],last:"Last updated"},hi:{b:"लाभार्थी",w:"भुगतान (₹)",v:["बहुत सुधार","सुधार","स्थिर","गिरावट","काफ़ी गिरावट"],last:"अंतिम अपडेट"}};
+
+const countrySel=document.getElementById("countrySelect");
+const stateSel=document.getElementById("stateSelect");
+const districtSel=document.getElementById("districtSelect");
+const locSel=document.getElementById("locationSelect");
+
+countrySel.onchange=()=>{if(countrySel.value){stateSel.disabled=false;stateSel.innerHTML='<option value="">Select State</option>';states.forEach(s=>{let o=document.createElement("option");o.textContent=s;stateSel.appendChild(o);});}else{stateSel.disabled=true;districtSel.disabled=true;locSel.disabled=true;}};
+stateSel.onchange=()=>{districtSel.disabled=false;districtSel.innerHTML='<option value="">Select District</option>';let arr=stateSel.value==="Uttar Pradesh"?districtsUP:stateSel.value==="Maharashtra"?districtsMH:districtsBH;arr.forEach(d=>{let o=document.createElement("option");o.textContent=d;districtSel.appendChild(o);});};
+districtSel.onchange=()=>{locSel.disabled=false;};
+
+document.getElementById("langBtn").onclick=()=>{lang=lang==="en"?"hi":"en";document.getElementById("langBtn").textContent=lang==="hi"?"English":"हिन्दी";};
+
+function generateData(){const s=[];const now=new Date();now.setMonth(now.getMonth()-11);for(let i=0;i<12;i++){const d=new Date(now);d.setMonth(now.getMonth()+i);s.push({month:d.toISOString().slice(0,7),beneficiaries:Math.floor(30000+Math.random()*80000),wages:Math.floor(1e7+Math.random()*5e7)});}return s;}
+
+function loadDistrict(d){const data=generateData();const latest=data[data.length-1];const median=data.map(x=>x.beneficiaries).sort((a,b)=>a-b)[5];const pct=Math.round((latest.beneficiaries-median)/median*100);const verdict=pct>20?0:pct>5?1:pct>-5?2:pct>-15?3:4;
+document.getElementById("dashboard").style.display="block";
+document.getElementById("districtName").textContent=d+" ("+locSel.value+")";
+document.getElementById("lastUpdated").textContent=i18n[lang].last+": "+new Date().toISOString().slice(0,10);
+document.getElementById("beneficiaries").textContent=latest.beneficiaries.toLocaleString();
+document.getElementById("wages").textContent=latest.wages.toLocaleString();
+const bi=document.getElementById("benefIndicator");bi.textContent=(pct>=0?"+":"")+pct+"%";bi.className="indicator "+(pct>5?"green":pct<-5?"red":"yellow");
+const wi=document.getElementById("wageIndicator");wi.textContent=i18n[lang].v[verdict];wi.className="indicator "+(verdict<2?"green":verdict==2?"yellow":"red");
+document.getElementById("verdict").textContent=i18n[lang].v[verdict];
+if(window.chart)chart.destroy();
+window.chart=new Chart(document.getElementById("trendChart"),{type:"line",data:{labels:data.map(x=>x.month),datasets:[{label:i18n[lang].b,data:data.map(x=>x.beneficiaries),borderColor:"#512da8",backgroundColor:"#d1c4e9",fill:true,tension:.3}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+document.getElementById("speakBtn").onclick=()=>{const t=lang==="en"?`District ${d}. ${latest.beneficiaries} beneficiaries received ₹${latest.wages}. Performance ${i18n.en.v[verdict]}.`:`${d} ज़िला। ${latest.beneficiaries} लाभार्थियों ने ₹${latest.wages} प्राप्त किए। प्रदर्शन ${i18n.hi.v[verdict]}।`;const m=new SpeechSynthesisUtterance(t);m.lang=lang==="en"?"en-IN":"hi-IN";speechSynthesis.cancel();speechSynthesis.speak(m);};}
+
+document.getElementById("loadBtn").onclick=()=>{if(districtSel.value&&locSel.value)loadDistrict(districtSel.value);else alert("Please select all fields.");};
+document.getElementById("geoBtn").onclick=()=>{if(!navigator.geolocation)return alert("Not supported");navigator.geolocation.getCurrentPosition(p=>{const lat=p.coords.latitude;const d=lat>27?"Lucknow":"Pune";countrySel.value="India";stateSel.disabled=false;stateSel.value=lat>27?"Uttar Pradesh":"Maharashtra";stateSel.onchange();districtSel.value=d;locSel.disabled=false;locSel.value="Rural";});};
+</script>
+</body>
+</html>
